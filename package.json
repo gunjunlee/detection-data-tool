@@ -1,12 +1,12 @@
 {
   "build": {
-    "productName": "HelloElectron",
+    "productName": "tool",
     "appId": "com.electron.hello",
-    "asar": true,
+    "asar": false,
     "protocols": {
-      "name": "helloElectron",
+      "name": "tool",
       "schemes": [
-        "helloelectron"
+        "tool"
       ]
     },
     "mac": {
@@ -16,7 +16,7 @@
       "icon": "./resources/installer/Icon.icns"
     },
     "dmg": {
-      "title": "HelloElectron",
+      "title": "tool",
       "icon": "./resources/installer/Icon.icns"
     },
     "win": {

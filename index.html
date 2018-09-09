@@ -92,6 +92,7 @@
                     y1: y1});
             }
             function loadImgs (evt) {
+                console.log("sdf");
                 window.removeEventListener(evt.type, loadImgs, false);
                 ipcRenderer.send('getImageList');
             }
@@ -117,6 +118,7 @@
             }
 
             ipcRenderer.on('setImageList', (event, msg) => {
+                console.log("sdfs");
                 console.log(msg.dir);
                 let imageList = document.getElementById('imageList')
                 for(let filePath of msg.dir){
