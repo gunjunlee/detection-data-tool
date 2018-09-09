@@ -131,7 +131,6 @@
             });
 
             ipcRenderer.on('setDoneList', (event, msg) => {
-                console.log("asdfsdalkfjhlsadkjfh");
                 console.log(msg.dir);
                 for(let fileName of msg.dir){
                     let image = document.getElementById(fileName);
