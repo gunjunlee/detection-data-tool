@@ -1,6 +1,7 @@
-const {app, BrowserWindow, ipcMain, ipcRenderer} = require('electron');
+const {app, BrowserWindow, ipcMain, ipcRenderer, dialog} = require('electron');
 const fs = require('fs');
 const io = require('socket.io')();
+const path = require('path');
 
 let win;
 
@@ -9,8 +10,8 @@ function createWindow(){
     win.loadFile('index.html')
 
     // Open the DevTools.
-    win.webContents.openDevTools()
-
+    // win.webContents.openDevTools()
+    
     // Emitted when the window is closed.
     win.on('closed', () => {
         // Dereference the window object, usually you would store windows
@@ -38,32 +39,46 @@ app.on('activate', () => {
     }
 });
 
-ipcMain.on('save-bbox', (event, bbox) => {
-    console.log(bbox);
-    fs.writeFile('./data/bbox/'+bbox.fileName,
-         `${bbox.x0} ${bbox.y0} ${bbox.x1} ${bbox.y1}`);
-    
-})
+var rootDir = '/'
 
-ipcMain.on('getImageList', (event) => {
-    fs.readdir('./data/images/', (err, dir) => {
-        if (!dir) return;
-        win.webContents.send('setImageList', {dir: dir});
-    });
+ipcMain.on('saveBbox', (event, bbox) => {
+    console.log(bbox);
+    fs.writeFile(path.join(rootDir, 'bbox', bbox.fileName),
+        `${bbox.x0} ${bbox.y0} ${bbox.x1} ${bbox.y1}`, 
+        ()=>{
+            fs.readdir(path.join(rootDir, 'bbox'), (err, dir) => {
+                if (!dir) return;
+                win.webContents.send('setDoneList', {dir: dir});
+            });
+        });
 })
 
 ipcMain.on('getDoneList', (event) => {
-    fs.readdir('./data/bbox/', (err, dir) => {
+    fs.readdir(path.join(rootDir, 'bbox'), (err, dir) => {
         if (!dir) return;
         win.webContents.send('setDoneList', {dir: dir});
     });
 })
 
 ipcMain.on('getbbox', (event, fileName) => {
-    fs.readFile('./data/bbox/'+fileName, 'utf8', (err, data) => {
+    fs.readFile(path.join(rootDir, 'bbox', fileName), 'utf8', (err, data) => {
         console.log(err, data);
         if(err) return
         if(!data) return
-        win.webContents.send('setbbox', data);
+        win.webContents.send('setBbox', data);
     })
+})
+
+ipcMain.on('openFolder', (event) => {
+    dialog.showOpenDialog({properties: ['openDirectory']}, (filePath, bookmarks) => {
+        rootDir = filePath[0];
+        win.webContents.send('setRootDir', rootDir);
+        fs.readdir(path.join(rootDir, 'images'), (err, files) => {
+            if (!files) return;
+            if (err) {
+                console.error(err);
+            }
+            win.webContents.send('setImageList', {files: files});
+        });
+    });
 })

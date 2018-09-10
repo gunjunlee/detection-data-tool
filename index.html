@@ -69,7 +69,7 @@
                     <canvas id="myCanvas">
 
                     </canvas>
-                    <button onclick="exportcoord()" width="50px" height="30px">
+                    <button onclick="eventConnector.exportcoord()" width="50px" height="30px">
                         export!
                     </button>
                 </div>
@@ -77,130 +77,214 @@
         </div>
         <script>
             const {ipcRenderer} = require('electron');
-
-            function exportcoord(){
-                saveBbox(fileName, x0, y0, x1, y1);
-                ipcRenderer.send('getDoneList');
-            }
-
-            function saveBbox (fileName, x0, y0, x1, y1) {
-                ipcRenderer.send('save-bbox', {
-                    fileName: fileName,
-                    x0: x0,
-                    y0: y0,
-                    x1: x1,
-                    y1: y1});
-            }
-            function loadImgs (evt) {
-                console.log("sdf");
-                window.removeEventListener(evt.type, loadImgs, false);
-                ipcRenderer.send('getImageList');
-            }
-
-            function drawImageOnCanvas(){
-                let c = document.getElementById('myCanvas');
-                let ctx = c.getContext('2d');
-                let img = document.getElementById('imageViewImage');
-                c.width = img.width;
-                c.height = img.height;
-                ctx.drawImage(img, 0, 0, c.width, c.height);
-            }
-
-            function setImageView(filePath){
-                let imageView = document.getElementById('imageView');
-                imageView.innerHTML = `<img id="imageViewImage" `+
-                    `src="./data/images/${filePath}"`+
-                    `>`;
-                drawImageOnCanvas();
-                fileName = filePath.split('.')[0]
-                console.log("ggg")
-                ipcRenderer.send('getbbox', fileName);
-            }
-
-            ipcRenderer.on('setImageList', (event, msg) => {
-                console.log("sdfs");
-                console.log(msg.dir);
-                let imageList = document.getElementById('imageList')
-                for(let filePath of msg.dir){
-                    name = filePath.split('.')[0]
-                    imageList.innerHTML += `<div class="image" id="${name}" style="background-color:red;">` +
-                        `<img src="./data/images/` +
-                        `${filePath}" width="33%" ` +
-                        `onclick="setImageView('${filePath}')" ` +
-                        '><br></div>';
+            
+            var main;
+            
+            var eventConnector = (function(){
+                var connector = {
+                    drawRectMouse(evt){
+                        main.drawRectMouse(evt);
+                    },
+                    setxy0(evt){
+                        main.setxy0(evt);
+                    },
+                    setxy1(evt){
+                        main.setxy1(evt);
+                    },
+                    exportcoord(evt){
+                        main.exportcoord();
+                    },
+                    keypressed(evt){
+                        console.log(evt.key);
+                        if (evt.key == 'e' || evt.key == 'E' ){
+                            main.exportcoord();
+                        }
+                    }
                 }
-                ipcRenderer.send('getDoneList');
-            });
+                return connector;
+            })();
 
-            ipcRenderer.on('setDoneList', (event, msg) => {
-                console.log(msg.dir);
-                for(let fileName of msg.dir){
-                    let image = document.getElementById(fileName);
-                    console.log(image);
-                    image.setAttribute('style', 'background-color:green;');
+            class Coord{
+                constructor (x0=0, y0=0, x1=0, y1=0) {
+                    this.x0 = x0;
+                    this.y0 = y0;
+                    this.x1 = x1;
+                    this.y1 = y1;
+                    
+                    this.setCallBack();
                 }
-            });
 
-            ipcRenderer.on('setbbox', (event, msg) => {
-                console.log(msg);
-                toks = msg.split(' ');
-                x0 = toks[0];
-                y0 = toks[1];
-                x1 = toks[2];
-                y1 = toks[3];
+                saveBbox (fileName) {
+                    ipcRenderer.send('saveBbox', {
+                        fileName: fileName,
+                        x0: this.x0,
+                        y0: this.y0,
+                        x1: this.x1,
+                        y1: this.y1,
+                    })
+                }
+
+                exportcoord (fileName) {
+                    this.saveBbox(fileName);
+                }
+
+                setCallBack () {
+
+                }
+            }
+
+            class Canvas{
+                constructor () {
+                    this.coord = new Coord();
+                    this.canvas = document.getElementById('myCanvas');
+                    console.log('canvas: ', this.canvas);
+                    this.ctx = this.canvas.getContext('2d');
+                    this.setCallBack();
+                }
                 
-                let c = document.getElementById('myCanvas');
-                let rect = c.getBoundingClientRect();
-                drawImageOnCanvas();
-                let ctx = c.getContext('2d');
-                ctx.rect(x0, y0, x1-x0, y1-y0);
-                ctx.stroke();
-            });
+                exportcoord(fileName){
+                    this.coord.exportcoord(fileName);
+                }
 
-            function setCanvas(evt){
-                window.removeEventListener(evt.type, setCanvas, false);
-                let c = document.getElementById('myCanvas');
-                console.log(c);
-                c.removeEventListener('mousemove', drawRect, false);
-                c.addEventListener('mousedown', setxy0, false);
-                c.addEventListener('mouseup', setxy1, false);
+                drawImageOnCanvas(){
+                    let img = document.getElementById('imageViewImage');
+                    this.canvas.width = img.width;
+                    this.canvas.height = img.height;
+                    this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+                }
+                
+                drawRect () {
+                    let w = this.coord.x1 - this.coord.x0;
+                    let h = this.coord.y1 - this.coord.y0;
+                    this.ctx.rect(this.coord.x0,
+                                this.coord.y0,
+                                w, h);
+                    this.ctx.stroke();
+                }
+
+                drawRectMouse (evt) {
+                    let rect = this.canvas.getBoundingClientRect();
+                    let tempX = evt.clientX - rect.left;
+                    let tempY = evt.clientY - rect.top;
+                    this.drawImageOnCanvas();
+                    this.ctx.rect(this.coord.x0, this.coord.y0,
+                                 tempX-this.coord.x0, tempY-this.coord.y0);
+                    this.ctx.stroke();
+                }
+
+                setxy0 (evt) {
+                    let rect = this.canvas.getBoundingClientRect();
+                    this.canvas.addEventListener('mousemove', eventConnector.drawRectMouse, false);
+                    this.coord.x0 = evt.clientX - rect.left;
+                    this.coord.y0 = evt.clientY - rect.top;
+                    console.log(this.coord.x0, this.coord.y0);
+                }   
+            
+                setxy1 (evt) {
+                    let rect = this.canvas.getBoundingClientRect();
+                    this.canvas.removeEventListener('mousemove', eventConnector.drawRectMouse, false);
+                    this.coord.x1 = evt.clientX - rect.left;
+                    this.coord.y1 = evt.clientY - rect.top;
+                    console.log(this.coord.x1, this.coord.y1);
+                }
+                
+                setCallBack () {
+                    ipcRenderer.on('setBbox', (evt, msg) => {
+                        console.log(msg);
+                        let toks = msg.split(' ');
+                        this.coord.x0 = toks[0];
+                        this.coord.y0 = toks[1];
+                        this.coord.x1 = toks[2];
+                        this.coord.y1 = toks[3];
+                        
+                        let rect = this.canvas.getBoundingClientRect();
+                        this.drawImageOnCanvas();
+                        this.drawRect();
+                    });
+                    this.canvas.removeEventListener('mousemove', eventConnector.drawRectMouse, false);
+                    this.canvas.addEventListener('mousedown', eventConnector.setxy0, false);
+                    this.canvas.addEventListener('mouseup', eventConnector.setxy1, false);
+                }
             }
             
-            var fileName, x0, y0, x1, y1;
+            class Main {
+                constructor () {
+                    this.canvas = new Canvas();
+                    this.rootDir = '';
+                    this.setCallBack();
+                    this.openFolder();
+                    this.fileName;
+                }
+
+                exportcoord () {
+                    console.log('asdasd', this.fileName);
+                    this.canvas.exportcoord(this.fileName);
+                }
+
+                openFolder () {
+                    ipcRenderer.send('openFolder');
+                }
+
+                setImageView (fileFullName) {
+                    let imageView = document.getElementById('imageView');
+                    imageView.innerHTML = `<img id="imageViewImage" `+
+                        `src="${this.rootDir}/images/${fileFullName}"`+
+                        `>`;
+                    this.canvas.drawImageOnCanvas();
+                    this.fileName = fileFullName.split('.')[0]
+                    ipcRenderer.send('getbbox', this.fileName);
+                }
+                
+                drawRectMouse (evt) {
+                    this.canvas.drawRectMouse(evt);
+                }
+
+                setxy0 (evt) {
+                    this.canvas.setxy0(evt);
+                }   
             
-            function setxy0(evt){
-                let c = document.getElementById('myCanvas');
-                let rect = c.getBoundingClientRect();
-                c.addEventListener('mousemove', drawRect, false);
-                x0 = evt.clientX - rect.left;
-                y0 = evt.clientY - rect.top;
-                console.log(x0, y0);
-            }
-            
-            function setxy1(evt){
-                let c = document.getElementById('myCanvas');
-                let rect = c.getBoundingClientRect();
-                c.removeEventListener('mousemove', drawRect, false);
-                x1 = evt.clientX - rect.left;
-                y1 = evt.clientY - rect.top;
-                console.log(x1, y1);
-            }
-            
-            function drawRect(evt){
-                let c = document.getElementById('myCanvas');
-                let rect = c.getBoundingClientRect();
-                let tempX = evt.clientX - rect.left;
-                let tempY = evt.clientY - rect.top;
-                drawImageOnCanvas();
-                let ctx = c.getContext('2d');
-                ctx.rect(x0, y0, tempX-x0, tempY-y0);
-                ctx.stroke();
+                setxy1 (evt) {
+                    this.canvas.setxy1(evt);
+                }
+                
+                setCallBack () {
+                    ipcRenderer.on('setImageList', (evt, msg) => {
+                        console.log(msg.files);
+                        let imageList = document.getElementById('imageList')
+                        for(let fileFullName of msg.files){
+                            name = fileFullName.split('.')[0];
+                            imageList.innerHTML += `<div class="image" id="${name}" ` +
+                                `onclick="main.setImageView('${fileFullName}')" ` + 
+                                `style="background-color:red;"> ` +
+                                `<img src="${this.rootDir}/images/${fileFullName}" ` +
+                                `width="33%" ` +
+                                '><br></div>';
+                        }
+                        ipcRenderer.send('getDoneList');
+                    });
+
+                    ipcRenderer.on('setDoneList', (evt, msg) => {
+                        console.log(msg.dir);
+                        for (let fileName of msg.dir) {
+                            let image = document.getElementById(fileName);
+                            image.setAttribute('style', 'background-color:green;');
+                        }
+                    });
+
+                    ipcRenderer.on('setRootDir', (evt, dirPath) => {
+                        console.log('On setRootDir', dirPath);
+                        this.rootDir = dirPath;
+                    })
+                }
             }
 
-            window.addEventListener('load', loadImgs, false);
-            window.addEventListener('load', setCanvas, false);
+            function setMain (evt) {
+                window.removeEventListener(evt.type, setMain, false);
+                main = new Main();
+            }
             
-            // saveBbox("t", 1, 2, 3, 4);
+            window.addEventListener('load', setMain, false);
+            window.addEventListener('keydown', eventConnector.keypressed, false);
         </script>
     </body>
 </html>
